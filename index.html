@@ -1,374 +1,345 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Lucy Liquid Sort — 3D Mode</title>
-<style>
-  html,body { height:100%; margin:0; }
-  body {
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial;
-    color: #e8eefc;
-    background: #0b1020 no-repeat center center fixed;
-    background-size: cover;
-  }
-  /* Background layer (optional; we apply to body directly, but keep for effects target) */
-  #bg { position: fixed; inset: 0; pointer-events:none; z-index:0; }
-  .wrap { position: relative; z-index:1; width:min(1000px,96vw); padding:16px; margin:auto; }
-  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:12px; flex-wrap: wrap; }
-  h1 { font-size:20px; margin:0; }
-  button { border:1px solid #33406a; background:#1a2446; color:#e8eefc; padding:8px 12px; border-radius:10px; cursor:pointer; }
-  button:hover { background:#212d58; }
-  canvas { width:100%; height:60vh; max-height: 600px; background: rgba(0,0,0,0.18); border:1px solid #243059; border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.35); display: block; margin: 0 auto; }
-  footer { margin-top:8px; font-size:12px; color:#93a0c2; text-align:center; }
-
-  /* Debug panel */
-  #debug {
-    position: fixed; right: 10px; top: 10px; z-index: 9999;
-    background: rgba(0,0,0,.6); color: #fff; padding:8px 10px; border-radius:10px;
-    font-size: 12px; line-height: 1.4; max-width: 60vw;
-  }
-  #debug b { color: #7cf5ff; }
-  #debug .close { margin-left:8px; cursor:pointer; opacity:.8; }
-  #debug .ok { color: #7cf5ff; }
-  #debug .err { color: #ff9aa2; }
-  .fade { animation: fadeEffect 1000ms ease; }
-  .zoom { animation: zoomEffect 1000ms ease; }
-  .slide { animation: slideEffect 1000ms ease; }
-  .rotate { animation: rotateEffect 1000ms ease; }
-  .blur { animation: blurEffect 1000ms ease; }
-  @keyframes fadeEffect { from {opacity:0;} to {opacity:1;} }
-  @keyframes zoomEffect { from {transform:scale(1.12);} to {transform:scale(1);} }
-  @keyframes slideEffect { from {background-position:-120% 0;} to {background-position:center;} }
-  @keyframes rotateEffect { from {transform:rotate(6deg);} to {transform:rotate(0);} }
-  @keyframes blurEffect { from {filter:blur(14px);} to {filter:blur(0);} }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .wrap { width: 98vw; padding: 8px; }
-    h1 { font-size: 18px; }
-    button { padding: 6px 10px; font-size: 14px; }
-    footer { font-size: 11px; }
-  }
-  
-  /* Simple 3D effect for tubes */
-  .tube-3d {
-    transform-style: preserve-3d;
-    perspective: 1000px;
-  }
-  .tube-3d .tube-shell {
-    transform: rotateX(15deg);
-    transform-origin: bottom center;
-  }
-  .tube-3d .liquid-segment {
-    transform: rotateX(15deg);
-    transform-origin: bottom center;
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lucy Liquid Sort — 3D Mode</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial;
+      color: #e8eefc;
+      background: #0b1020 no-repeat center center fixed;
+      background-size: cover;
+    }
+    #bg { position: fixed; inset: 0; pointer-events:none; z-index:0; }
+    .ui { position: absolute; top: 10px; left: 10px; z-index: 10; padding: 10px; background: rgba(0,0,0,0.5); border-radius: 10px; }
+    button { margin: 5px; padding: 8px 12px; border: 1px solid #33406a; background: #1a2446; color: #e8eefc; border-radius: 10px; cursor: pointer; }
+    button:hover { background: #212d58; }
+    #debug {
+      position: fixed; right: 10px; top: 10px; z-index: 9999;
+      background: rgba(0,0,0,.6); color: #fff; padding:8px 10px; border-radius:10px;
+      font-size: 12px; line-height: 1.4; max-width: 60vw;
+    }
+  </style>
 </head>
 <body>
   <div id="bg" aria-hidden="true"></div>
-  <div id="debug">booting…</div>
+  <div id="debug">Loading...</div>
 
-  <div class="wrap">
-    <header>
-      <h1>Lucy Liquid Sort</h1>
-      <div><span id="levelLabel">Level 1</span> • <span id="moves">0</span> moves</div>
-      <div>
-        <button id="btnUndo">Undo</button>
-        <button id="btnReset">Reset</button>
-        <button id="btnNew">New</button>
-      </div>
-    </header>
-
-    <canvas id="game" width="800" height="500" aria-label="Color sort puzzle board"></canvas>
-    <footer>Tip: Tap a tube, then tap the target tube to pour. Undo is available.</footer>
+  <div class="ui">
+    <h2>Lucy Liquid Sort</h2>
+    <div><span id="levelLabel">Level 1</span> • <span id="moves">0</span> moves</div>
+    <button id="btnUndo">Undo</button>
+    <button id="btnReset">Reset</button>
+    <button id="btnNew">New</button>
   </div>
 
-<script>
-// ========== Debug helpers ==========
-const $debug = document.getElementById('debug');
-function logDebug(msg, cls='') {
-  if(!$debug) return;
-  const p = document.createElement('div');
-  if(cls) p.className = cls;
-  p.textContent = msg;
-  $debug.appendChild(p);
-}
-function setDebug(msg) { $debug.textContent = msg; }
-function closeDebug(){ if($debug) $debug.remove(); }
-</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
-<script>
-// ========== Lucy Background (robust) ==========
-(function(){
-  const list = [
-    "lucy1.png","lucy2.png","lucy3.png","lucy4.png","lucy5.png",
-    "lucy6.png","lucy7.png","lucy8.png","lucy9.png","lucy10.png"
-  ];
-  const effects = ["fade","zoom","slide","rotate","blur"];
-  const available = [];
-  let tested = 0, current = 0, changeCount = 0;
-  const bgDiv = document.getElementById('bg');
-
-  function probe(src, cb){
-    const img = new Image();
-    img.onload = ()=>cb(src,true);
-    img.onerror = ()=>cb(src,false);
-    // cache-bust to avoid stale 404
-    img.src = src + "?v=" + Date.now();
-  }
-
-  setDebug("Checking Lucy images in root…");
-  list.forEach(src => probe(src, (s, ok)=>{
-    tested++;
-    if(ok){ 
-      available.push(s); 
-      logDebug("✓ found "+s, 'ok'); 
+  <script>
+    // ========== Debug helpers ==========
+    const $debug = document.getElementById('debug');
+    function logDebug(msg, cls='') {
+      if(!$debug) return;
+      const p = document.createElement('div');
+      if(cls) p.className = cls;
+      p.textContent = msg;
+      $debug.appendChild(p);
     }
-    else { 
-      logDebug("✗ missing "+s, 'err'); 
-    }
-    if(tested===list.length){
-      if(available.length===0){
-        logDebug("No lucy*.png images found next to index.html", 'err');
-        // Continue with game even if no background images
-        initGame();
-      } else {
-        logDebug("Loaded "+available.length+" / "+list.length+" images.", 'ok');
-        // start rotation
-        swap();
-        setInterval(swap, 60000);
-        initGame();
+    function setDebug(msg) { $debug.textContent = msg; }
+    function closeDebug(){ if($debug) $debug.remove(); }
+
+    // ========== Lucy Background (robust) ==========
+    (function(){
+      const list = [
+        "lucy1.png","lucy2.png","lucy3.png","lucy4.png","lucy5.png",
+        "lucy6.png","lucy7.png","lucy8.png","lucy9.png","lucy10.png"
+      ];
+      const effects = ["fade","zoom","slide","rotate","blur"];
+      const available = [];
+      let tested = 0, current = 0, changeCount = 0;
+      const bgDiv = document.getElementById('bg');
+
+      function probe(src, cb){
+        const img = new Image();
+        img.onload = ()=>cb(src,true);
+        img.onerror = ()=>cb(src,false);
+        img.src = src + "?v=" + Date.now();
       }
-      // add a close button
-      const x = document.createElement('span');
-      x.textContent = '✕';
-      x.className = 'close';
-      x.onclick = closeDebug;
-      $debug.appendChild(x);
-    }
-  }));
 
-  function applyBg(url){
-    document.body.style.backgroundImage = 'url("'+url+'")';
-    document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundPosition = 'center center';
-  }
+      setDebug("Checking Lucy images in root…");
+      list.forEach(src => probe(src, (s, ok)=>{
+        tested++;
+        if(ok){ available.push(s); logDebug("✓ found "+s, 'ok'); }
+        else { logDebug("✗ missing "+s, 'err'); }
+        if(tested===list.length){
+          if(available.length===0){
+            logDebug("No lucy*.png images found next to index.html", 'err');
+            initGame();
+          } else {
+            logDebug("Loaded "+available.length+" / "+list.length+" images.", 'ok');
+            swap();
+            setInterval(swap, 60000);
+            initGame();
+          }
+          const x = document.createElement('span');
+          x.textContent = '✕';
+          x.className = 'close';
+          x.onclick = closeDebug;
+          $debug.appendChild(x);
+        }
+      }));
 
-  function swap(){
-    if(!available.length) return;
-    applyBg(available[current]);
-    current = (current + 1) % available.length;
-    changeCount++;
-    if(changeCount % 10 === 0){
-      const fx = effects[Math.floor(Math.random()*effects.length)];
-      document.body.classList.add(fx);
-      setTimeout(()=>document.body.classList.remove(fx), 1000);
-    }
-  }
-})();
-</script>
-
-<script>
-// ========== Color Sort Game (stable) ==========
-(function(){
-  const TUBE_CAPACITY=4, BASE_TUBES=6, EMPTY_TUBES=2;
-  const COLORS=['#ff5964','#f2a65a','#ffe74c','#59cd90','#4d9de0','#b57edc','#ff87ab','#7cf5ff'];
-
-  let level=1,tubes=[],history=[],selected=null,moves=0;
-  const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
-  const uiLevel=document.getElementById('levelLabel'),uiMoves=document.getElementById('moves');
-
-  function okBoot(){
-    logDebug("Game boot ✓ canvas context ok", "ok");
-  }
-  function errBoot(){
-    logDebug("Game boot failed: canvas context missing", "err");
-  }
-  canvas && ctx ? okBoot() : errBoot();
-
-  // Initialize game after background check
-  function initGame() {
-    loadLevel(1);
-  }
-
-  document.getElementById('btnUndo').onclick=()=>{ if(history.length){ tubes=history.pop(); moves=Math.max(0,moves-1); uiMoves.textContent=moves; selected=null; draw(); } };
-  document.getElementById('btnReset').onclick=()=>loadLevel(level,true);
-  document.getElementById('btnNew').onclick=()=>{ level++; loadLevel(level); };
-
-  canvas.addEventListener('click',e=>{
-    const r=canvas.getBoundingClientRect();
-    // Fixed coordinate calculation
-    const x=(e.clientX-r.left)*canvas.width/r.width;
-    const y=(e.clientY-r.top)*canvas.height/r.height;
-    const i=tubes.findIndex(t=>x>=t._rect.x&&x<=t._rect.x+t._rect.w&&y>=t._rect.y&&y<=t._rect.y+t._rect.h);
-    if(i<0) return;
-    if(selected==null){ 
-      // Only select if tube has liquid
-      if(tubes[i].length > 0) {
-        selected=i; 
-        draw(); 
+      function applyBg(url){
+        document.body.style.backgroundImage = 'url("'+url+'")';
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center center';
       }
-      return; 
-    }
-    if(selected===i){ selected=null; draw(); return; }
-    pour(selected,i);
-  }, {passive:true});
 
-  function randInt(n){return Math.floor(Math.random()*n);}
-  function generateLevel(n){
-    const sets=Math.min(3+Math.floor((n-1)/1.5),8);
-    const cnt=Math.max(BASE_TUBES,sets+EMPTY_TUBES);
-    let arr=[]; 
-    for(let c=0;c<sets;c++) 
-      for(let s=0;s<TUBE_CAPACITY;s++) 
-        arr.push(c);
-    
-    // Shuffle the array
-    for(let i=arr.length-1;i>0;i--){
-      let j=randInt(i+1); 
-      [arr[i],arr[j]]=[arr[j],arr[i]]; 
-    }
-    
-    // Create tubes array
-    const piles=Array.from({length:cnt},()=>[]);
-    
-    // Distribute colors to tubes
-    let k=0;
-    for(let t=0;t<cnt;t++) { // Fill all tubes
-      for(let s=0;s<TUBE_CAPACITY;s++) {
-        if(k < arr.length) {
-          piles[t].push(arr[k++]);
+      function swap(){
+        if(!available.length) return;
+        applyBg(available[current]);
+        current = (current + 1) % available.length;
+        changeCount++;
+        if(changeCount % 10 === 0){
+          const fx = effects[Math.floor(Math.random()*effects.length)];
+          document.body.classList.add(fx);
+          setTimeout(()=>document.body.classList.remove(fx), 1000);
         }
       }
-    }
-    
-    return piles;
-  }
-  function clone(st){return st.map(t=>t.slice());}
-  function loadLevel(n,keep=false){
-    if(!keep) level=n;
-    tubes=generateLevel(level); 
-    history=[]; 
-    selected=null; 
-    moves=0;
-    uiLevel.textContent='Level '+level; 
-    uiMoves.textContent=moves; 
-    draw();
-  }
-  function legalMove(a,b){
-    if(a===b) return false;
-    let A=tubes[a],B=tubes[b];
-    if(A.length === 0 || B.length===TUBE_CAPACITY) return false;
-    let color=A[A.length-1],count=1;
-    for(let i=A.length-2;i>=0&&A[i]===color;i--) count++;
-    if(B.length === 0) return true;
-    return B[B.length-1]===color && B.length + Math.min(count, TUBE_CAPACITY-B.length) <= TUBE_CAPACITY;
-  }
-  function pour(a,b){
-    if(!legalMove(a,b)) return;
-    history.push(clone(tubes));
-    let A=tubes[a],B=tubes[b],color=A[A.length-1];
-    while(A.length && A[A.length-1]===color && B.length<TUBE_CAPACITY) B.push(A.pop());
-    moves++; uiMoves.textContent=moves; selected=null; draw();
-    checkWin();
-  }
-  function checkWin() {
-    for(const tube of tubes) {
-      if(tube.length === 0) continue; // Empty tubes are fine
-      
-      // Check if all colors in tube are the same
-      const firstColor = tube[0];
-      for(const color of tube) {
-        if(color !== firstColor) return false;
-      }
-      
-      // Check if tube is full
-      if(tube.length !== TUBE_CAPACITY) return false;
-    }
-    
-    // If we get here, player has won
-    setTimeout(() => {
-      alert(`You won level ${level} in ${moves} moves!`);
-      level++;
-      loadLevel(level);
-    }, 300);
-  }
-  function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    const cols=Math.min(tubes.length,8),gap=28,tubeW=Math.min(90,(canvas.width-gap*(cols+1))/cols),tubeH=340,baseY=canvas.height-90,startX=(canvas.width-(tubeW*cols+gap*(cols-1)))/2;
-    tubes.forEach((tube,i)=>{
-      const x=startX+i*(tubeW+gap), y=baseY-tubeH;
-      
-      // Draw tube shell with 3D effect
-      ctx.lineWidth=3; 
-      ctx.strokeStyle='#3a4878'; 
-      ctx.fillStyle='rgba(255,255,255,0.03)';
-      
-      // Create 3D effect with perspective
-      ctx.save();
-      ctx.translate(x + tubeW/2, y + tubeH/2);
-      ctx.rotate(-0.1); // Slight tilt for 3D effect
-      ctx.translate(-(x + tubeW/2), -(y + tubeH/2));
-      
-      // rounded rect
-      roundRect(ctx,x,y,tubeW,tubeH,16,true,true);
-      
-      // Restore transform
-      ctx.restore();
-      
-      if(selected===i){ glowRect(ctx,x,y,tubeW,tubeH); }
-      
-      // segments
-      const segH=(tubeH-16)/TUBE_CAPACITY;
-      for(let s=0;s<tube.length;s++){
-        const col=COLORS[tube[s]%COLORS.length];
-        const segY=y+tubeH-(s+1)*segH-8;
-        
-        // Create 3D effect for liquid
-        ctx.save();
-        ctx.translate(x + tubeW/2, segY + segH/2);
-        ctx.rotate(-0.1); // Slight tilt for 3D effect
-        ctx.translate(-(x + tubeW/2), -(segY + segH/2));
-        
-        drawLiquid(ctx,x+8,segY,tubeW-16,segH-6,col);
-        
-        ctx.restore();
-      }
-      
-      tube._rect={x,y,w:tubeW,h:tubeH};
-    });
-  }
-  function roundRect(ctx,x,y,w,h,r,fill,stroke){
-    if(typeof r==='number') r={tl:r,tr:r,br:r,bl:r};
-    ctx.beginPath();
-    ctx.moveTo(x+r.tl,y); ctx.lineTo(x+w-r.tr,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r.tr);
-    ctx.lineTo(x+w,y+h-r.br); ctx.quadraticCurveTo(x+w,y+h,x+w-r.br,y+h);
-    ctx.lineTo(x+r.bl,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r.bl);
-    ctx.lineTo(x,y+r.tl); ctx.quadraticCurveTo(x,y,x+r.tl,y);
-    ctx.closePath();
-    if(fill) ctx.fill(); if(stroke) ctx.stroke();
-  }
-  function drawLiquid(ctx,x,y,w,h,color){
-    const grd=ctx.createLinearGradient(0,y,0,y+h); grd.addColorStop(0,shade(color,20)); grd.addColorStop(1,shade(color,-10));
-    ctx.fillStyle=grd; ctx.strokeStyle=shade(color,-35); ctx.lineWidth=2; roundRect(ctx,x,y,w,h,10,true,true);
-    ctx.fillStyle='rgba(255,255,255,.12)'; roundRect(ctx,x+6,y+6,w-12,Math.max(6,h*0.18),8,true,false);
-  }
-  function shade(hex,amt){ const n=parseInt(hex.replace('#',''),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255; r=Math.min(255,Math.max(0,r+amt)); g=Math.min(255,Math.max(0,g+amt)); b=Math.min(255,Math.max(0,b+amt)); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
-  function glowRect(ctx,x,y,w,h){ 
-    ctx.save(); 
-    ctx.shadowBlur=24; 
-    ctx.shadowColor='rgba(124,245,255,.8)'; 
-    ctx.strokeStyle='rgba(124,245,255,.9)'; 
-    ctx.lineWidth=3; 
-    roundRect(ctx,x-2,y-2,w+4,h+4,20,false,true); 
-    ctx.restore(); 
-  }
+    })();
+  </script>
 
-  // Initialize game
-  initGame();
-})();
-</script>
+  <script>
+    // ========== 3D Game with Three.js ==========
+    (function(){
+      const TUBE_CAPACITY=4, BASE_TUBES=6, EMPTY_TUBES=2;
+      const COLORS=['#ff5964','#f2a65a','#ffe74c','#59cd90','#4d9de0','#b57edc','#ff87ab','#7cf5ff'];
+
+      let level=1,tubes=[],history=[],selected=null,moves=0;
+      const uiLevel=document.getElementById('levelLabel'),uiMoves=document.getElementById('moves');
+
+      // Three.js setup
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x0b1020);
+      document.body.appendChild(renderer.domElement);
+
+      // Add lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(0, 10, 10);
+      scene.add(directionalLight);
+
+      // Camera position
+      camera.position.set(0, 0, 15);
+      camera.lookAt(0, 0, 0);
+
+      // Controls
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+
+      // Game objects
+      const tubeObjects = [];
+
+      function initGame() {
+        loadLevel(level);
+        animate();
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      document.getElementById('btnUndo').onclick=()=>{ if(history.length){ tubes=history.pop(); moves=Math.max(0,moves-1); uiMoves.textContent=moves; selected=null; draw3D(); } };
+      document.getElementById('btnReset').onclick=()=>loadLevel(level,true);
+      document.getElementById('btnNew').onclick=()=>{ level++; loadLevel(level); };
+
+      // Click detection for 3D objects
+      renderer.domElement.addEventListener('click', (event) => {
+        const mouse = new THREE.Vector2();
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+
+        const intersects = raycaster.intersectObjects(tubeObjects);
+        if (intersects.length > 0) {
+          const clickedTubeIndex = tubeObjects.indexOf(intersects[0].object.parent);
+          if(selected==null){ 
+            if(tubes[clickedTubeIndex].length > 0) {
+              selected=clickedTubeIndex; 
+              draw3D(); 
+            }
+            return; 
+          }
+          if(selected===clickedTubeIndex){ selected=null; draw3D(); return; }
+          pour(selected,clickedTubeIndex);
+        }
+      });
+
+      function randInt(n){return Math.floor(Math.random()*n);}
+      function generateLevel(n){
+        const sets=Math.min(3+Math.floor((n-1)/1.5),8);
+        const cnt=Math.max(BASE_TUBES,sets+EMPTY_TUBES);
+        let arr=[]; 
+        for(let c=0;c<sets;c++) 
+          for(let s=0;s<TUBE_CAPACITY;s++) 
+            arr.push(c);
+        
+        for(let i=arr.length-1;i>0;i--){
+          let j=randInt(i+1); 
+          [arr[i],arr[j]]=[arr[j],arr[i]]; 
+        }
+        
+        const piles=Array.from({length:cnt},()=>[]);
+        let k=0;
+        for(let t=0;t<cnt;t++) { 
+          for(let s=0;s<TUBE_CAPACITY;s++) {
+            if(k < arr.length) {
+              piles[t].push(arr[k++]);
+            }
+          }
+        }
+        
+        return piles;
+      }
+      function clone(st){return st.map(t=>t.slice());}
+      function loadLevel(n,keep=false){
+        if(!keep) level=n;
+        tubes=generateLevel(level); 
+        history=[]; 
+        selected=null; 
+        moves=0;
+        uiLevel.textContent='Level '+level; 
+        uiMoves.textContent=moves; 
+        draw3D();
+      }
+      function legalMove(a,b){
+        if(a===b) return false;
+        let A=tubes[a],B=tubes[b];
+        if(A.length === 0 || B.length===TUBE_CAPACITY) return false;
+        let color=A[A.length-1],count=1;
+        for(let i=A.length-2;i>=0&&A[i]===color;i--) count++;
+        if(B.length === 0) return true;
+        return B[B.length-1]===color && B.length + Math.min(count, TUBE_CAPACITY-B.length) <= TUBE_CAPACITY;
+      }
+      function pour(a,b){
+        if(!legalMove(a,b)) return;
+        history.push(clone(tubes));
+        let A=tubes[a],B=tubes[b],color=A[A.length-1];
+        while(A.length && A[A.length-1]===color && B.length<TUBE_CAPACITY) B.push(A.pop());
+        moves++; uiMoves.textContent=moves; selected=null; draw3D();
+        checkWin();
+      }
+      function checkWin() {
+        for(const tube of tubes) {
+          if(tube.length === 0) continue;
+          const firstColor = tube[0];
+          for(const color of tube) {
+            if(color !== firstColor) return false;
+          }
+          if(tube.length !== TUBE_CAPACITY) return false;
+        }
+        setTimeout(() => {
+          alert(`You won level ${level} in ${moves} moves!`);
+          level++;
+          loadLevel(level);
+        }, 300);
+      }
+
+      function draw3D() {
+        // Clear existing tubes
+        tubeObjects.forEach(obj => scene.remove(obj));
+        tubeObjects.length = 0;
+
+        // Create new tubes
+        const cols = Math.min(tubes.length, 8);
+        const gap = 2.5;
+        const tubeRadius = 0.8;
+        const tubeHeight = 4;
+        const startX = -(cols - 1) * (tubeRadius * 2 + gap) / 2;
+
+        tubes.forEach((tube, i) => {
+          const group = new THREE.Group();
+          
+          // Tube shell (cylinder)
+          const tubeGeometry = new THREE.CylinderGeometry(tubeRadius, tubeRadius, tubeHeight, 32);
+          const tubeMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.3,
+            metalness: 0.5,
+            roughness: 0.5
+          });
+          const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+          tubeMesh.rotation.x = Math.PI / 2; // Rotate to stand upright
+          group.add(tubeMesh);
+          
+          // Tube cap (top)
+          const capGeometry = new THREE.CircleGeometry(tubeRadius, 32);
+          const capMaterial = new THREE.MeshStandardMaterial({
+            color: 0xaaaaaa,
+            metalness: 0.8,
+            roughness: 0.2
+          });
+          const capMesh = new THREE.Mesh(capGeometry, capMaterial);
+          capMesh.rotation.x = Math.PI / 2;
+          capMesh.position.y = tubeHeight / 2;
+          group.add(capMesh);
+          
+          // Liquid segments
+          const segHeight = tubeHeight / TUBE_CAPACITY;
+          for(let s=0; s<tube.length; s++){
+            const colorIndex = tube[s] % COLORS.length;
+            const liquidColor = parseInt(COLORS[colorIndex].replace('#',''), 16);
+            
+            // Liquid geometry
+            const liquidGeometry = new THREE.CylinderGeometry(tubeRadius * 0.95, tubeRadius * 0.95, segHeight * 0.9, 32);
+            const liquidMaterial = new THREE.MeshStandardMaterial({
+              color: liquidColor,
+              transparent: true,
+              opacity: 0.8,
+              metalness: 0.2,
+              roughness: 0.8
+            });
+            const liquidMesh = new THREE.Mesh(liquidGeometry, liquidMaterial);
+            liquidMesh.rotation.x = Math.PI / 2;
+            liquidMesh.position.y = -tubeHeight/2 + segHeight/2 + s * segHeight;
+            group.add(liquidMesh);
+          }
+          
+          // Position tube
+          group.position.x = startX + i * (tubeRadius * 2 + gap);
+          group.position.y = 0;
+          group.position.z = 0;
+          
+          // Store tube data
+          group.userData = { index: i };
+          tubeObjects.push(group);
+          scene.add(group);
+        });
+      }
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Initialize game
+      initGame();
+    })();
+  </script>
 </body>
 </html>
