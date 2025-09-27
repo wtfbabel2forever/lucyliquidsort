@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Color Sort — Minimal Web Puzzle</title>
+<style>
+  :root { --bg:#0b1020; --ink:#e8eefc; --muted:#93a0c2; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; background:linear-gradient(180deg,#0b1020,#121a35); color:var(--ink); display:flex; align-items:center; justify-content:center; }
+  .wrap { width:min(1000px,96vw); padding:16px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  h1 { font-size:20px; margin:0; letter-spacing:.3px; font-weight:700; }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; }
+  button { appearance:none; border:1px solid #33406a; background:#1a2446; color:var(--ink); padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:600; }
+  button:hover { background:#212d58; }
+  .hud { display:flex; gap:18px; align-items:center; color:var(--muted); font-size:14px; }
+  canvas { width:100%; height:auto; background:radial-gradient(1200px 500px at 50% 0%, #1a2446 0%, #0b1020 60%); border:1px solid #243059; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 0 40px rgba(255,255,255,.03); }
+  footer { margin-top:10px; font-size:12px; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Color Sort — Web</h1>
+      <div class="hud"><span id="levelLabel">Level 1</span><span>•</span><span id="moves">0 moves</span></div>
+      <div class="btns">
+        <button id="btnUndo">Undo</button>
+        <button id="btnReset">Reset</button>
+        <button id="btnNew">New Level</button>
+      </div>
+    </header>
+    <canvas id="game" width="1200" height="700" aria-label="Color sort puzzle board" role="img"></canvas>
+    <footer>Click a tube, then another tube to pour. Fill tubes by color. Mobile: tap ↔ tap.</footer>
+  </div>
+
+<script>
+(function(){
+  // --- Config ---
+  const TUBE_CAPACITY = 4;    // segments per tube
+  const BASE_TUBES = 6;       // total tubes (including 2 empty)
+  const EMPTY_TUBES = 2;      // number of empty tubes at start
+  const COLORS = [
+    '#ff5964','#f2a65a','#ffe74c','#59cd90',
+    '#4d9de0','#b57edc','#ff87ab','#7cf5ff'
+  ];
+
+  // --- State ---
+  let level = 1;
+  let tubes = [];// array of arrays, top at end
+  let history = [];// for undo
+  let selected = null; // index of selected tube
+  let moves = 0;
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const uiLevel = document.getElementById('levelLabel');
+  const uiMoves = document.getElementById('moves');
+
+  document.getElementById('btnUndo').onclick = undo;
+  document.getElementById('btnReset').onclick = () => loadLevel(level, true);
+  document.getElementById('btnNew').onclick = () => { level++; loadLevel(level); };
+
+  canvas.addEventListener('click', handleClick);
+  canvas.addEventListener('touchstart', e=>{ e.preventDefault(); handleClick(e.touches[0]); }, {passive:false});
+
+  function randInt(n){ return Math.floor(Math.random()*n); }
+
+  function generateLevel(levelNum){
+    // number of color sets grows with level (min 3, max 8)
+    const sets = Math.min(3 + Math.floor((levelNum-1)/1.5), 8);
+    const tubesCount = Math.max(BASE_TUBES, sets + EMPTY_TUBES);
+    let arr = [];
+    for(let c=0;c<sets;c++){
+      for(let s=0;s<TUBE_CAPACITY;s++) arr.push(c);
+    }
+    // shuffle
+    for(let i=arr.length-1;i>0;i--){ let j=randInt(i+1); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+    // deal into tubes (leave EMPTY_TUBES empty)
+    const piles = Array.from({length:tubesCount},()=>[]);
+    let i=0; for(let t=0;t<tubesCount-EMPTY_TUBES;t++){ for(let s=0;s<TUBE_CAPACITY;s++){ piles[t].push(arr[i++]); } }
+    return { piles, sets };
+  }
+
+  function clone(state){ return state.map(t=>t.slice()); }
+
+  function loadLevel(n, keepLevel=false){
+    if(!keepLevel) level = n;
+    const g = generateLevel(level);
+    tubes = g.piles;
+    history = [];
+    selected = null;
+    moves = 0;
+    uiLevel.textContent = `Level ${level}`;
+    uiMoves.textContent = `${moves} moves`;
+    draw();
+  }
+
+  function isComplete(){
+    return tubes.every(t => t.length===0 || (t.length===TUBE_CAPACITY && t.every(v=>v===t[0])));
+  }
+
+  function pushHistory(){ history.push(clone(tubes)); if(history.length>200) history.shift(); }
+  function undo(){ if(history.length){ tubes = history.pop(); moves=Math.max(0,moves-1); uiMoves.textContent = `${moves} moves`; selected=null; draw(); } }
+
+  function legalMove(from, to){
+    if(from===to) return false;
+    const A = tubes[from], B = tubes[to];
+    if(A.length===0) return false; // nothing to pour
+    if(B.length===TUBE_CAPACITY) return false; // target full
+    // find top color and contiguous block size
+    const color = A[A.length-1];
+    let count = 1;
+    for(let i=A.length-2;i>=0 && A[i]===color;i--) count++;
+    // target acceptance rules
+    if(B.length===0){ return true; }
+    const topB = B[B.length-1];
+    if(topB!==color) return false;
+    return B.length + Math.min(count, TUBE_CAPACITY - B.length) <= TUBE_CAPACITY;
+  }
+
+  function pour(from, to){
+    if(!legalMove(from,to)) return;
+    pushHistory();
+    const A = tubes[from], B = tubes[to];
+    const color = A[A.length-1];
+    let moved = 0;
+    while(A.length && A[A.length-1]===color && B.length<TUBE_CAPACITY){ B.push(A.pop()); moved++; }
+    moves++; uiMoves.textContent = `${moves} moves`;
+    selected = null; draw();
+    // auto-advance if cleared
+    if(isComplete()){
+      flash("Perfect! Next ▶");
+      setTimeout(()=>{ level++; loadLevel(level); }, 700);
+    }
+  }
+
+  // --- Rendering ---
+  function draw(){
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H);
+    const cols = Math.min(tubes.length, 8);
+    const gap = 28, tubeW = Math.min(90, (W - gap*(cols+1))/cols);
+    const tubeH = 340, baseY = H - 90;
+    const startX = (W - (tubeW*cols + gap*(cols-1)))/2;
+
+    // draw tubes
+    tubes.forEach((tube, i)=>{
+      const x = startX + i*(tubeW+gap);
+      const y = baseY - tubeH;
+      // tube shell
+      const r = 18; ctx.lineWidth = 3; ctx.strokeStyle = '#3a4878'; ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      roundRect(ctx, x, y, tubeW, tubeH, r, true, true);
+
+      // selection glow
+      if(selected===i){ glowRect(ctx, x, y, tubeW, tubeH); }
+
+      // segments (bottom-up)
+      const segH = (tubeH-16)/TUBE_CAPACITY; // padding inside
+      for(let s=0;s<tube.length;s++){
+        const color = COLORS[tube[s]%COLORS.length];
+        const segY = y + tubeH - (s+1)*segH - 8;
+        drawLiquid(ctx, x+8, segY, tubeW-16, segH-6, color);
+      }
+
+      // hitbox store
+      tube._rect = {x, y, w:tubeW, h:tubeH};
+    });
+
+    // small legend
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.font = '12px system-ui,Segoe UI,Inter,Arial';
+    ctx.fillText('Tip: Double‑tap empty tube for quick pour target', 16, 22);
+  }
+
+  function handleClick(e){
+    const rect = canvas.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (canvas.width/rect.width);
+    const py = (e.clientY - rect.top) * (canvas.height/rect.height);
+    const idx = tubes.findIndex(t=> pointInRect(px,py,t._rect));
+    if(idx<0) return;
+    if(selected==null){ selected = idx; draw(); return; }
+    if(selected===idx){ selected=null; draw(); return; }
+    pour(selected, idx);
+  }
+
+  // --- helpers ---
+  function pointInRect(x,y,r){ return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h; }
+  function roundRect(ctx, x, y, w, h, r, fill, stroke){
+    if (typeof r === 'number') { r = {tl:r,tr:r,br:r,bl:r}; }
+    ctx.beginPath();
+    ctx.moveTo(x + r.tl, y);
+    ctx.lineTo(x + w - r.tr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+    ctx.lineTo(x + w, y + h - r.br);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+    ctx.lineTo(x + r.bl, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+    ctx.lineTo(x, y + r.tl);
+    ctx.quadraticCurveTo(x, y, x + r.tl, y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+  function drawLiquid(ctx, x, y, w, h, color){
+    const grd = ctx.createLinearGradient(0, y, 0, y+h);
+    grd.addColorStop(0, shade(color, 20));
+    grd.addColorStop(1, shade(color, -10));
+    ctx.fillStyle = grd; ctx.strokeStyle = shade(color,-35); ctx.lineWidth = 2;
+    roundRect(ctx, x, y, w, h, 10, true, true);
+    // highlight
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    roundRect(ctx, x+6, y+6, w-12, Math.max(6, h*0.18), 8, true, false);
+  }
+  function shade(hex, amt){ // simple hex shade
+    const c = hex.replace('#',''); const n = parseInt(c,16);
+    let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+    r=Math.min(255,Math.max(0,r+amt)); g=Math.min(255,Math.max(0,g+amt)); b=Math.min(255,Math.max(0,b+amt));
+    return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+  }
+  function glowRect(ctx,x,y,w,h){
+    ctx.save(); ctx.shadowBlur=24; ctx.shadowColor='rgba(124,245,255,.8)';
+    ctx.strokeStyle='rgba(124,245,255,.9)'; ctx.lineWidth=3; roundRect(ctx,x-2,y-2,w+4,h+4,20,false,true); ctx.restore();
+  }
+  function flash(text){
+    const W=canvas.width,H=canvas.height; ctx.save(); ctx.fillStyle='rgba(0,0,0,.3)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#7cf5ff'; ctx.font='bold 44px Inter,Segoe UI,Arial'; const w=ctx.measureText(text).width; ctx.fillText(text,(W-w)/2,H/2);
+    ctx.restore();
+  }
+
+  // boot
+  loadLevel(1);
+})();
+</script>
+</body>
+</html>
