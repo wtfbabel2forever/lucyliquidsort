@@ -184,17 +184,42 @@ function closeDebug(){ if($debug) $debug.remove(); }
   function generateLevel(n){
     const sets=Math.min(3+Math.floor((n-1)/1.5),8);
     const cnt=Math.max(BASE_TUBES,sets+EMPTY_TUBES);
-    let arr=[]; for(let c=0;c<sets;c++) for(let s=0;s<TUBE_CAPACITY;s++) arr.push(c);
-    for(let i=arr.length-1;i>0;i--){ let j=randInt(i+1); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+    let arr=[]; 
+    for(let c=0;c<sets;c++) 
+      for(let s=0;s<TUBE_CAPACITY;s++) 
+        arr.push(c);
+    
+    // Shuffle the array
+    for(let i=arr.length-1;i>0;i--){
+      let j=randInt(i+1); 
+      [arr[i],arr[j]]=[arr[j],arr[i]]; 
+    }
+    
+    // Create tubes array
     const piles=Array.from({length:cnt},()=>[]);
-    let k=0; for(let t=0;t<cnt-EMPTY_TUBES;t++) for(let s=0;s<TUBE_CAPACITY;s++) piles[t].push(arr[k++]);
+    
+    // Distribute colors to tubes
+    let k=0;
+    for(let t=0;t<sets;t++) { // Only fill tubes that should have colors
+      for(let s=0;s<TUBE_CAPACITY;s++) {
+        if(k < arr.length) {
+          piles[t].push(arr[k++]);
+        }
+      }
+    }
+    
     return piles;
   }
   function clone(st){return st.map(t=>t.slice());}
   function loadLevel(n,keep=false){
     if(!keep) level=n;
-    tubes=generateLevel(level); history=[]; selected=null; moves=0;
-    uiLevel.textContent='Level '+level; uiMoves.textContent=moves; draw();
+    tubes=generateLevel(level); 
+    history=[]; 
+    selected=null; 
+    moves=0;
+    uiLevel.textContent='Level '+level; 
+    uiMoves.textContent=moves; 
+    draw();
   }
   function legalMove(a,b){
     if(a===b) return false;
