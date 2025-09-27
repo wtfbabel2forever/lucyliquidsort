@@ -18,6 +18,37 @@
   .hud { display:flex; gap:18px; align-items:center; color:var(--muted); font-size:14px; }
   canvas { width:100%; height:auto; background:radial-gradient(1200px 500px at 50% 0%, #1a2446 0%, #0b1020 60%); border:1px solid #243059; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 0 40px rgba(255,255,255,.03); }
   footer { margin-top:10px; font-size:12px; color:var(--muted); text-align:center; }
+
+  body {
+    transition: background 1s ease-in-out;
+  }
+  .fade { animation: fadeEffect 2s ease; }
+  .zoom { animation: zoomEffect 2s ease; }
+  .slide { animation: slideEffect 2s ease; }
+  .rotate { animation: rotateEffect 2s ease; }
+  .blur { animation: blurEffect 2s ease; }
+
+  @keyframes fadeEffect {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes zoomEffect {
+    0% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  @keyframes slideEffect {
+    0% { background-position: -100% 0; }
+    100% { background-position: 0 0; }
+  }
+  @keyframes rotateEffect {
+    0% { transform: rotate(15deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @keyframes blurEffect {
+    0% { filter: blur(10px); }
+    100% { filter: blur(0px); }
+  }
+
 </style>
 </head>
 <body>
@@ -234,5 +265,33 @@
   loadLevel(1);
 })();
 </script>
+
+<script>
+  const backgrounds = [
+    "lucy1.jpg","lucy2.jpg","lucy3.jpg","lucy4.jpg","lucy5.jpg",
+    "lucy6.jpg","lucy7.jpg","lucy8.jpg","lucy9.jpg","lucy10.jpg"
+  ];
+
+  let current = 0;
+  let changeCount = 0;
+  const effects = ["fade","zoom","slide","rotate","blur"];
+
+  function changeBackground() {
+    document.body.style.background = `url(${backgrounds[current]}) no-repeat center center fixed`;
+    document.body.style.backgroundSize = "cover";
+    current = (current + 1) % backgrounds.length;
+    changeCount++;
+
+    if (changeCount % 10 === 0) {
+      let effect = effects[Math.floor(Math.random()*effects.length)];
+      document.body.classList.add(effect);
+      setTimeout(()=>document.body.classList.remove(effect), 2000);
+    }
+  }
+
+  changeBackground();
+  setInterval(changeBackground, 60000);
+</script>
+
 </body>
 </html>
