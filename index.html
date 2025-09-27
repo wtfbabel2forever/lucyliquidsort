@@ -108,16 +108,24 @@ function closeDebug(){ if($debug) $debug.remove(); }
   setDebug("Checking Lucy images in root…");
   list.forEach(src => probe(src, (s, ok)=>{
     tested++;
-    if(ok){ available.push(s); logDebug("✓ found "+s, 'ok'); }
-    else { logDebug("✗ missing "+s, 'err'); }
+    if(ok){ 
+      available.push(s); 
+      logDebug("✓ found "+s, 'ok'); 
+    }
+    else { 
+      logDebug("✗ missing "+s, 'err'); 
+    }
     if(tested===list.length){
       if(available.length===0){
         logDebug("No lucy*.png images found next to index.html", 'err');
+        // Continue with game even if no background images
+        loadLevel(1);
       } else {
         logDebug("Loaded "+available.length+" / "+list.length+" images.", 'ok');
         // start rotation
         swap();
         setInterval(swap, 60000);
+        loadLevel(1);
       }
       // add a close button
       const x = document.createElement('span');
@@ -306,7 +314,8 @@ function closeDebug(){ if($debug) $debug.remove(); }
   function shade(hex,amt){ const n=parseInt(hex.replace('#',''),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255; r=Math.min(255,Math.max(0,r+amt)); g=Math.min(255,Math.max(0,g+amt)); b=Math.min(255,Math.max(0,b+amt)); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
   function glowRect(ctx,x,y,w,h){ ctx.save(); ctx.shadowBlur=24; ctx.shadowColor='rgba(124,245,255,.8)'; ctx.strokeStyle='rgba(124,245,255,.9)'; ctx.lineWidth=3; roundRect(ctx,x-2,y-2,w+4,h+4,20,false,true); ctx.restore(); }
 
-  loadLevel(1);
+  // Initialize game after background check
+  // This will be called when background check completes
 })();
 </script>
 </body>
