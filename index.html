@@ -16,7 +16,7 @@
   button { appearance:none; border:1px solid #33406a; background:#1a2446; color:var(--ink); padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:600; }
   button:hover { background:#212d58; }
   .hud { display:flex; gap:18px; align-items:center; color:var(--muted); font-size:14px; }
-  canvas { width:100%; height:auto; background:radial-gradient(1200px 500px at 50% 0%, #1a2446 0%, #0b1020 60%); border:1px solid #243059; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 0 40px rgba(255,255,255,.03); }
+  canvas { width:100%; height:auto; background: transparent; border:1px solid #243059; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 0 40px rgba(255,255,255,.03); }
   footer { margin-top:10px; font-size:12px; color:var(--muted); text-align:center; }
 
   body {
@@ -49,9 +49,25 @@
     100% { filter: blur(0px); }
   }
 
+
+  /* Fullscreen background layer for Lucy images */
+  #bg {
+    position: fixed;
+    inset: 0;
+    background: #0b1020;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    z-index: 0;
+    filter: none;
+    transition: background-image 0s, filter 0.6s ease;
+  }
+  .wrap { position: relative; z-index: 1; }
+
 </style>
 </head>
 <body>
+  <div id="bg"></div>
   <div class="wrap">
     <header>
       <h1>Color Sort — Web</h1>
@@ -278,16 +294,20 @@
 
   function changeBackground() {
     document.body.style.background = `url(${backgrounds[current]}) no-repeat center center fixed`;
-    document.body.style.backgroundSize = "cover";
+    /* background layer handles sizing */
     current = (current + 1) % backgrounds.length;
     changeCount++;
 
     if (changeCount % 10 === 0) {
       let effect = effects[Math.floor(Math.random()*effects.length)];
-      document.body.classList.add(effect);
-      setTimeout(()=>document.body.classList.remove(effect), 2000);
+      document.getElementById("bg").classList.add(effect);
+      setTimeout(()=>document.getElementById("bg").classList.remove(effect), 2000);
     }
   }
+
+  
+  // Preload images
+  const preloads = backgrounds.map(src => { const img = new Image(); img.src = src; return img; });
 
   changeBackground();
   setInterval(changeBackground, 60000);
