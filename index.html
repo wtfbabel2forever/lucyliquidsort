@@ -229,27 +229,33 @@ function closeDebug(){ if($debug) $debug.remove(); }
   }, {passive:true});
 
   function randInt(n){return Math.floor(Math.random()*n);}
+  
   function generateLevel(n){
-    const sets=Math.min(3+Math.floor((n-1)/1.5),8);
-    const cnt=Math.max(BASE_TUBES,sets+EMPTY_TUBES);
-    let arr=[]; 
-    for(let c=0;c<sets;c++) 
-      for(let s=0;s<TUBE_CAPACITY;s++) 
+    // Calculate number of color sets (max 8 - number of available colors)
+    const sets = Math.min(8, 3 + Math.floor((n-1)/1.5));
+    const cnt = Math.max(BASE_TUBES, sets + EMPTY_TUBES);
+    
+    // Create color array
+    let arr = [];
+    for(let c = 0; c < sets; c++) {
+      for(let s = 0; s < TUBE_CAPACITY; s++) {
         arr.push(c);
+      }
+    }
     
     // Shuffle the array
-    for(let i=arr.length-1;i>0;i--){
-      let j=randInt(i+1); 
-      [arr[i],arr[j]]=[arr[j],arr[i]]; 
+    for(let i = arr.length - 1; i > 0; i--) {
+      let j = randInt(i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     
     // Create tubes array
-    const piles=Array.from({length:cnt},()=>[]);
+    const piles = Array.from({length: cnt}, () => []);
     
     // Distribute colors to tubes
-    let k=0;
-    for(let t=0;t<cnt;t++) { // Fill all tubes
-      for(let s=0;s<TUBE_CAPACITY;s++) {
+    let k = 0;
+    for(let t = 0; t < cnt; t++) {
+      for(let s = 0; s < TUBE_CAPACITY; s++) {
         if(k < arr.length) {
           piles[t].push(arr[k++]);
         }
@@ -258,6 +264,7 @@ function closeDebug(){ if($debug) $debug.remove(); }
     
     return piles;
   }
+  
   function clone(st){return st.map(t=>t.slice());}
   function loadLevel(n,keep=false){
     if(!keep) level=n;
